@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>实验室试剂库</title>
+    <title>实验室试剂库 (云端版)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        /* 样式保持不变 */
         :root { --primary-color: #0056b3; --bg-color: #f8f9fa; }
         body { font-family: -apple-system, sans-serif; background: var(--bg-color); margin: 0; padding: 20px; color: #333; }
         .container { max-width: 1200px; margin: 0 auto; }
         .controls { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px; position: sticky; top: 10px; z-index: 100; }
-        input { flex: 1; padding: 12px 20px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; height: 45px; box-sizing: border-box; background: white; }
+        input { flex: 1; padding: 12px 20px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; height: 45px; box-sizing: border-box; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         .add-btn-wrapper { display: flex; flex-direction: column; align-items: center; }
         .btn-add { background: var(--primary-color); color: white; border: none; border-radius: 8px; width: 45px; height: 45px; cursor: pointer; font-size: 28px; }
         .add-hint { font-size: 10px; color: #666; margin-top: 4px; }
@@ -36,7 +37,7 @@
             <div class="add-hint">添加新试剂</div>
         </div>
     </div>
-    <div id="statsInfo" style="text-align:center; color:#666; margin-bottom:10px;">正在连接数据库...</div>
+    <div id="statsInfo" style="text-align:center; color:#666; margin-bottom:10px;">正在连接云端数据库...</div>
     <div id="results"></div>
 </div>
 
@@ -50,17 +51,34 @@
 </div>
 
 <script>
-    // === 配置区域 ===
-    const supabaseUrl = 'https://nmlzxbbwbquoedycfsee.supabase.co';
-    const supabaseKey = 'sb_publishable_YA7A9CBUpaYBdhm3UgLNVA_sZ9RjoZC';
-    // ================
+    // === 2. 配置区域 (请再次填入你的 URL 和 Key) ===
+    const S_URL = '你的Project URL';
+    const S_KEY = '你的anon public key';
+    // ===========================================
 
-    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    // 使用 db 作为变量名，避免与库名 supabase 冲突
+    let db;
     let allData = [];
 
     async function init() {
-        const { data, error } = await supabase.from('reagents').select('*').order('created_at', { ascending: false });
-        if (!error) { allData = data; render(allData); }
+        try {
+            // 初始化客户端
+            db = window.supabase.createClient(S_URL, S_KEY);
+            
+            // 获取数据
+            const { data, error } = await db
+                .from('reagents')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            allData = data;
+            render(allData);
+        } catch (err) {
+            console.error("初始化错误:", err);
+            document.getElementById('statsInfo').innerText = "连接失败，请检查 URL 和 Key 是否正确";
+        }
     }
 
     function render(list) {
@@ -70,14 +88,23 @@
         list.forEach((item) => {
             const div = document.createElement('div');
             div.className = 'reagent-card';
-            div.innerHTML = `<div class="reagent-loc">${item.location}</div><div class="reagent-name">${item.name}</div><div class="reagent-cas">CAS号: ${item.cas || '--'}</div><button class="btn-del" onclick="deleteItem(${item.id})">删除试剂</button>`;
+            div.innerHTML = `
+                <div class="reagent-loc">${item.location}</div>
+                <div class="reagent-name">${item.name}</div>
+                <div class="reagent-cas">CAS号: ${item.cas || '--'}</div>
+                <button class="btn-del" onclick="deleteItem(${item.id})">删除试剂</button>
+            `;
             container.appendChild(div);
         });
     }
 
     function doSearch() {
         const key = document.getElementById('uiSearch').value.toLowerCase();
-        const filtered = allData.filter(item => (item.name||'').toLowerCase().includes(key) || (item.location||'').toLowerCase().includes(key) || (item.cas||'').includes(key));
+        const filtered = allData.filter(item => 
+            (item.name||'').toLowerCase().includes(key) || 
+            (item.location||'').toLowerCase().includes(key) || 
+            (item.cas||'').includes(key)
+        );
         render(filtered);
     }
 
@@ -90,20 +117,32 @@
         const name = document.getElementById('newName').value.trim();
         const loc = document.getElementById('newLoc').value.trim();
         const cas = document.getElementById('newCas').value.trim();
-        if(!name || !loc) return alert("必填项不能为空");
+        if(!name || !loc) return alert("名称和位置不能为空");
         if(allData.some(item => item.name === name)) return alert("试剂已存在");
 
-        const { data, error } = await supabase.from('reagents').insert([{ name, location: loc, cas }]).select();
-        if(!error) { allData.unshift(data[0]); render(allData); toggleModal(false); }
+        const { data, error } = await db.from('reagents').insert([{ name, location: loc, cas }]).select();
+        if(error) {
+            alert("添加失败: " + error.message);
+        } else {
+            allData.unshift(data[0]); 
+            render(allData); 
+            toggleModal(false); 
+        }
     }
 
     async function deleteItem(id) {
         if(confirm("确定要永久删除吗？")) {
-            const { error } = await supabase.from('reagents').delete().eq('id', id);
-            if(!error) { allData = allData.filter(item => item.id !== id); render(allData); }
+            const { error } = await db.from('reagents').delete().eq('id', id);
+            if(!error) {
+                allData = allData.filter(item => item.id !== id);
+                render(allData);
+            } else {
+                alert("删除失败");
+            }
         }
     }
 
+    // 启动
     init();
 </script>
 </body>
