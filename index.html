@@ -4,118 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>实验室试剂库</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --primary-color: #0056b3; --bg-color: #f8f9fa; }
         body { font-family: -apple-system, sans-serif; background: var(--bg-color); margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1200px; margin: 0 auto; } /* 增加了最大宽度，方便在大屏显示更多 */
-        
-        /* 标题 */
-        .header { margin-bottom: 20px; }
-        h2 { margin: 0; color: #333; }
-        
-        /* 搜索框区域 */
+        .container { max-width: 1200px; margin: 0 auto; }
         .controls { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px; position: sticky; top: 10px; z-index: 100; }
-        
-        input { 
-            flex: 1; 
-            padding: 12px 20px; 
-            border: 2px solid #ddd; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            outline: none; 
-            height: 45px; 
-            box-sizing: border-box;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05); /* 给搜索框加点阴影，防遮挡 */
-            background: white;
-        }
-        input:focus { border-color: var(--primary-color); }
-        
-        /* 添加按钮部分 */
+        input { flex: 1; padding: 12px 20px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; height: 45px; box-sizing: border-box; background: white; }
         .add-btn-wrapper { display: flex; flex-direction: column; align-items: center; }
-        .btn-add { 
-            background: var(--primary-color); color: white; border: none; border-radius: 8px; 
-            width: 45px; height: 45px; cursor: pointer; font-size: 28px; 
-            display: flex; align-items: center; justify-content: center; line-height: 1;
-        }
-        .add-hint { font-size: 10px; color: #666; margin-top: 4px; white-space: nowrap; }
-
-        /* --- 核心修改：网格布局容器 --- */
-        #results {
-            display: grid;
-            /* 自动填充：每个卡片最小300px，空间够就多放几个，不够就换行 */
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px; /* 卡片之间的间距 */
-        }
-
-        /* 列表卡片 */
-        .reagent-card { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 12px; 
-            position: relative; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
-            display: flex; 
-            flex-direction: column; /* 内容垂直排列 */
-            justify-content: space-between;
-            height: 100%; /* 保证同一行卡片高度一致 */
-            box-sizing: border-box;
-        }
-        
-        .reagent-name { font-weight: bold; font-size: 1.2em; margin-bottom: 8px; padding-right: 80px; word-break: break-all; }
+        .btn-add { background: var(--primary-color); color: white; border: none; border-radius: 8px; width: 45px; height: 45px; cursor: pointer; font-size: 28px; }
+        .add-hint { font-size: 10px; color: #666; margin-top: 4px; }
+        #results { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .reagent-card { background: white; padding: 20px; border-radius: 12px; position: relative; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; box-sizing: border-box; }
+        .reagent-name { font-weight: bold; font-size: 1.2em; margin-bottom: 8px; padding-right: 80px; }
         .reagent-cas { color: #888; font-size: 0.9em; margin-bottom: 15px; }
-        
-        /* 位置信息：大字体、深色背景 */
-        .reagent-loc { 
-            position: absolute; 
-            top: 20px; 
-            right: 20px; 
-            background: #e7f3ff; 
-            color: #0056b3; 
-            padding: 5px 12px; 
-            border-radius: 6px; 
-            font-weight: bold; 
-            font-size: 1.2em; 
-        }
-        
-        /* 删除按钮 */
-        .btn-del { 
-            align-self: flex-start; /* 按钮靠左对齐 */
-            background: none; 
-            border: 1px solid #ff4d4f; 
-            color: #ff4d4f; 
-            cursor: pointer; 
-            font-size: 0.85em; 
-            padding: 4px 10px; 
-            border-radius: 4px;
-            margin-top: auto; /* 把按钮推到底部 */
-        }
-        
-        .stats { font-size: 0.85em; color: #666; margin-bottom: 15px; text-align: center; }
-
-        /* 弹窗样式 */
+        .reagent-loc { position: absolute; top: 20px; right: 20px; background: #e7f3ff; color: #0056b3; padding: 5px 12px; border-radius: 6px; font-weight: bold; font-size: 1.2em; }
+        .btn-del { align-self: flex-start; background: none; border: 1px solid #ff4d4f; color: #ff4d4f; cursor: pointer; font-size: 0.85em; padding: 4px 10px; border-radius: 4px; margin-top: auto; }
         #addModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 12px; box-shadow: 0 15px 50px rgba(0,0,0,0.3); z-index: 1001; width: 90%; max-width: 350px; }
         #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
-        .modal-input { width: 100%; margin-bottom: 15px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        .modal-input { width: 100%; margin-bottom: 15px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="header">
-        <h2>🧪 实验室试剂库</h2>
-    </div>
-
+    <h2>🧪 实验室试剂库</h2>
     <div class="controls">
         <input type="text" id="uiSearch" oninput="doSearch()" placeholder="搜索名称、位置、CAS号...">
-        
         <div class="add-btn-wrapper">
             <button class="btn-add" onclick="toggleModal(true)">+</button>
             <div class="add-hint">添加新试剂</div>
         </div>
     </div>
-
-    <div id="statsInfo" class="stats">正在加载数据...</div>
-    
+    <div id="statsInfo" style="text-align:center; color:#666; margin-bottom:10px;">正在连接数据库...</div>
     <div id="results"></div>
 </div>
 
@@ -129,45 +50,34 @@
 </div>
 
 <script>
+    // === 配置区域 ===
+    const supabaseUrl = 'https://nmlzxbbwbquoedycfsee.supabase.co';
+    const supabaseKey = 'sb_publishable_YA7A9CBUpaYBdhm3UgLNVA_sZ9RjoZC';
+    // ================
+
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
     let allData = [];
 
-    // 初始化加载
-    fetch('data.json')
-        .then(res => res.json())
-        .then(data => {
-            allData = data;
-            render(allData);
-        })
-        .catch(err => {
-            document.getElementById('statsInfo').innerText = "加载失败，请检查 data.json";
-        });
+    async function init() {
+        const { data, error } = await supabase.from('reagents').select('*').order('created_at', { ascending: false });
+        if (!error) { allData = data; render(allData); }
+    }
 
     function render(list) {
         const container = document.getElementById('results');
-        const stats = document.getElementById('statsInfo');
+        document.getElementById('statsInfo').innerText = `共有 ${list.length} 种试剂`;
         container.innerHTML = '';
-        stats.innerText = `共有 ${list.length} 种试剂`;
-        
-        list.forEach((item, index) => {
+        list.forEach((item) => {
             const div = document.createElement('div');
             div.className = 'reagent-card';
-            div.innerHTML = `
-                <div class="reagent-loc">${item['储存位置']}</div>
-                <div class="reagent-name">${item['试剂名称']}</div>
-                <div class="reagent-cas">CAS号: ${item['cas号'] || '--'}</div>
-                <button class="btn-del" onclick="deleteItem(${index})">删除试剂</button>
-            `;
+            div.innerHTML = `<div class="reagent-loc">${item.location}</div><div class="reagent-name">${item.name}</div><div class="reagent-cas">CAS号: ${item.cas || '--'}</div><button class="btn-del" onclick="deleteItem(${item.id})">删除试剂</button>`;
             container.appendChild(div);
         });
     }
 
     function doSearch() {
         const key = document.getElementById('uiSearch').value.toLowerCase();
-        const filtered = allData.filter(item => 
-            (item['试剂名称'] || '').toLowerCase().includes(key) || 
-            (item['储存位置'] || '').toLowerCase().includes(key) ||
-            (item['cas号'] || '').includes(key)
-        );
+        const filtered = allData.filter(item => (item.name||'').toLowerCase().includes(key) || (item.location||'').toLowerCase().includes(key) || (item.cas||'').includes(key));
         render(filtered);
     }
 
@@ -176,34 +86,25 @@
         document.getElementById('overlay').style.display = show ? 'block' : 'none';
     }
 
-    function addNew() {
+    async function addNew() {
         const name = document.getElementById('newName').value.trim();
         const loc = document.getElementById('newLoc').value.trim();
         const cas = document.getElementById('newCas').value.trim();
-        
-        if(!name || !loc) return alert("请填写名称和位置");
-        
-        const isExist = allData.some(item => item['试剂名称'] === name);
-        if(isExist) {
-            alert("该试剂已存在试剂库！请勿重复添加。");
-            return;
-        }
-        
-        allData.unshift({ "试剂名称": name, "储存位置": loc, "cas号": cas });
-        render(allData);
-        toggleModal(false);
-        
-        document.getElementById('newName').value = '';
-        document.getElementById('newLoc').value = '';
-        document.getElementById('newCas').value = '';
+        if(!name || !loc) return alert("必填项不能为空");
+        if(allData.some(item => item.name === name)) return alert("试剂已存在");
+
+        const { data, error } = await supabase.from('reagents').insert([{ name, location: loc, cas }]).select();
+        if(!error) { allData.unshift(data[0]); render(allData); toggleModal(false); }
     }
 
-    function deleteItem(index) {
-        if(confirm("确定要删除此试剂吗？(注意：刷新后会恢复)")) {
-            allData.splice(index, 1);
-            render(allData);
+    async function deleteItem(id) {
+        if(confirm("确定要永久删除吗？")) {
+            const { error } = await supabase.from('reagents').delete().eq('id', id);
+            if(!error) { allData = allData.filter(item => item.id !== id); render(allData); }
         }
     }
+
+    init();
 </script>
 </body>
 </html>
