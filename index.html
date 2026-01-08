@@ -1,26 +1,178 @@
-// === 配置区域 ===
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验室试剂库 - 云端实时版</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --primary-color: #0056b3; --bg-color: #f8f9fa; --danger-color: #ff4d4f; }
+        body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background: var(--bg-color); margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        /* 顶部标题 */
+        h2 { text-align: center; color: #2c3e50; margin-bottom: 25px; }
+
+        /* 搜索和添加区域 */
+        .controls { 
+            display: flex; 
+            align-items: flex-start; 
+            gap: 12px; 
+            margin-bottom: 20px; 
+            position: sticky; 
+            top: 10px; 
+            z-index: 100; 
+        }
+        
+        input#uiSearch { 
+            flex: 1; 
+            padding: 12px 20px; 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            outline: none; 
+            height: 48px; 
+            box-sizing: border-box;
+            background: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        input#uiSearch:focus { border-color: var(--primary-color); }
+        
+        /* 添加按钮及其下方提示字 */
+        .add-btn-wrapper { display: flex; flex-direction: column; align-items: center; }
+        .btn-add { 
+            background: var(--primary-color); 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            width: 48px; 
+            height: 48px; 
+            cursor: pointer; 
+            font-size: 32px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,86,179,0.3);
+        }
+        .add-hint { font-size: 11px; color: #666; margin-top: 5px; white-space: nowrap; font-weight: bold; }
+
+        /* 网格布局：自动适配列数 */
+        #results { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+            gap: 20px; 
+        }
+
+        /* 试剂卡片样式 */
+        .reagent-card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 12px; 
+            position: relative; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06); 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between;
+            min-height: 140px;
+            box-sizing: border-box;
+            transition: transform 0.2s;
+        }
+        .reagent-card:hover { transform: translateY(-3px); }
+        
+        .reagent-name { font-weight: bold; font-size: 1.25em; color: #222; margin-bottom: 8px; padding-right: 85px; word-break: break-all; }
+        .reagent-cas { color: #888; font-size: 0.9em; margin-bottom: 15px; }
+        
+        /* 显眼的位置标签：配色蓝底白字，字体调大 */
+        .reagent-loc { 
+            position: absolute; 
+            top: 15px; 
+            right: 15px; 
+            background: #e7f3ff; 
+            color: var(--primary-color); 
+            padding: 6px 14px; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            font-size: 1.2em; 
+            border: 1px solid #cce5ff;
+        }
+        
+        /* 删除试剂按钮 */
+        .btn-del { 
+            align-self: flex-start; 
+            background: none; 
+            border: 1px solid var(--danger-color); 
+            color: var(--danger-color); 
+            cursor: pointer; 
+            font-size: 0.85em; 
+            padding: 5px 12px; 
+            border-radius: 6px;
+            margin-top: auto;
+        }
+        .btn-del:hover { background: var(--danger-color); color: white; }
+        
+        .stats { font-size: 0.9em; color: #777; margin-bottom: 15px; text-align: center; font-weight: 500; }
+
+        /* 弹窗样式 */
+        #addModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 15px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); z-index: 1001; width: 90%; max-width: 360px; }
+        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; }
+        .modal-input { width: 100%; margin-bottom: 15px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 15px; outline: none; }
+        .modal-input:focus { border-color: var(--primary-color); }
+        .btn-submit { width: 100%; padding: 12px; background: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🧪 实验室试剂管理系统</h2>
+
+    <div class="controls">
+        <input type="text" id="uiSearch" oninput="doSearch()" placeholder="搜索试剂名称、位置或CAS号...">
+        
+        <div class="add-btn-wrapper">
+            <button class="btn-add" onclick="toggleModal(true)">+</button>
+            <div class="add-hint">添加新试剂</div>
+        </div>
+    </div>
+
+    <div id="statsInfo" class="stats">正在连接云端数据库...</div>
+    <div id="results"></div>
+</div>
+
+<div id="overlay" onclick="toggleModal(false)"></div>
+<div id="addModal">
+    <h3 style="margin-top:0; color:#2c3e50;">添加新试剂</h3>
+    <input type="text" id="newName" class="modal-input" placeholder="试剂名称 (必填)">
+    <input type="text" id="newLoc" class="modal-input" placeholder="储存位置 (必填, 如 1-1)">
+    <input type="text" id="newCas" class="modal-input" placeholder="cas号 (选填)">
+    <button class="btn-submit" onclick="addNew()">确认保存到云端</button>
+</div>
+
+<script>
+    // === 配置信息 ===
     const PROJECT_URL = 'https://nmlzxbbwbquoedycfsee.supabase.co';
     const PROJECT_KEY = 'sb_publishable_YA7A9CBUpaYBdhm3UgLNVA_sZ9RjoZC';
 
     let labClient; 
     let allReagents = [];
 
-    async function initSystem() {
+    // 初始化系统
+    async function init() {
         try {
+            // 创建客户端
             labClient = window.supabase.createClient(PROJECT_URL, PROJECT_KEY);
             
-            // 1. 首次加载数据
+            // 1. 获取初始数据
             await fetchData();
 
-            // 2. 开启实时监听：重点就在这里！
-            setupRealtimeSubscription();
+            // 2. 开启实时监听 (A加B见)
+            setupRealtime();
 
         } catch (err) {
-            console.error("系统初始化错误:", err);
+            document.getElementById('statsInfo').innerText = "配置错误，请检查 URL 和 Key";
         }
     }
 
-    // 获取所有数据的函数
+    // 从数据库拉取数据
     async function fetchData() {
         const { data, error } = await labClient
             .from('reagents')
@@ -33,26 +185,24 @@
         }
     }
 
-    // 核心逻辑：订阅数据库变动
-    function setupRealtimeSubscription() {
+    // 实时监听数据库变动
+    function setupRealtime() {
         labClient
-            .channel('any-db-changes') // 创建一个频道
-            .on(
-                'postgres_changes', 
-                { event: '*', schema: 'public', table: 'reagents' }, 
-                (payload) => {
-                    console.log('检测到云端变动:', payload);
-                    // 无论谁添加、删除或修改了数据，所有人的网页都会触发 fetchData 重新同步
-                    fetchData(); 
-                }
-            )
+            .channel('db-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'reagents' }, (payload) => {
+                console.log('检测到数据变动，正在同步...');
+                fetchData(); // 只要数据库有变动，所有客户端自动重刷数据
+            })
             .subscribe();
     }
 
+    // 渲染界面
     function renderItems(list) {
         const container = document.getElementById('results');
-        document.getElementById('statsInfo').innerText = `共有 ${list.length} 种试剂`;
+        const stats = document.getElementById('statsInfo');
         container.innerHTML = '';
+        stats.innerText = `库中共有 ${list.length} 种试剂`;
+        
         list.forEach((item) => {
             const div = document.createElement('div');
             div.className = 'reagent-card';
@@ -66,9 +216,7 @@
         });
     }
 
-    // 搜索、弹窗控制、添加、删除函数保持不变...
-    // (为了简洁，这里省略重复的 UI 控制函数，请保留你原来的 addNew, deleteReagent, doSearch 等)
-
+    // 搜索功能
     function doSearch() {
         const key = document.getElementById('uiSearch').value.toLowerCase();
         const filtered = allReagents.filter(item => 
@@ -79,37 +227,50 @@
         renderItems(filtered);
     }
 
+    // 弹窗控制
     function toggleModal(show) {
         document.getElementById('addModal').style.display = show ? 'block' : 'none';
         document.getElementById('overlay').style.display = show ? 'block' : 'none';
     }
 
+    // 添加试剂 (带查重)
     async function addNew() {
         const name = document.getElementById('newName').value.trim();
         const loc = document.getElementById('newLoc').value.trim();
         const cas = document.getElementById('newCas').value.trim();
-        if(!name || !loc) return alert("名称和位置不能为空");
-        if(allReagents.some(item => item.name === name)) return alert("该试剂已存在库中！");
+        
+        if(!name || !loc) return alert("名称和位置必须填写！");
+        
+        // 查重逻辑
+        const isExist = allReagents.some(item => item.name === name);
+        if(isExist) {
+            alert(`试剂 [${name}] 已存在库中，请勿重复添加！`);
+            return;
+        }
 
         const { error } = await labClient.from('reagents').insert([{ name, location: loc, cas }]);
+        
         if(error) {
-            alert("添加失败: " + error.message);
+            alert("上传失败: " + error.message);
         } else {
-            // 注意：因为有了实时监听，这里甚至不需要手动 add 到 allReagents
-            // 数据库成功后，监听会自动触发 fetchData
-            toggleModal(false); 
+            // 成功后清空并关闭（由于开启了Realtime，界面会自动弹出新卡片）
+            toggleModal(false);
             document.getElementById('newName').value = '';
             document.getElementById('newLoc').value = '';
             document.getElementById('newCas').value = '';
         }
     }
 
+    // 删除试剂
     async function deleteReagent(id) {
-        if(confirm("确定要永久删除此试剂吗？")) {
+        if(confirm("确定要永久从云端仓库删除此试剂吗？")) {
             const { error } = await labClient.from('reagents').delete().eq('id', id);
-            if(error) alert("删除失败: " + error.message);
-            // 同样，删除成功后监听器会自动刷新列表
+            if(error) alert("删除失败");
         }
     }
 
-    window.onload = initSystem;
+    // 启动系统
+    window.onload = init;
+</script>
+</body>
+</html>
