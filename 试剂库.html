@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验室试剂库</title>
+    <style>
+        /* 简单清爽的样式 */
+        body { font-family: sans-serif; background: #f4f7f6; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px; box-sizing: border-box; }
+        .card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .name { font-weight: bold; font-size: 1.1em; }
+        .details { color: #666; font-size: 0.9em; margin-top: 5px; }
+        .loc-tag { float: right; color: #007bff; background: #eef6ff; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🧪 实验室试剂查询</h2>
+    <input type="text" id="uiSearch" oninput="doSearch()" placeholder="输入试剂名、位置或CAS号...">
+    <div id="results">正在加载数据...</div>
+</div>
+
+<script>
+    let allData = [];
+
+    // 加载 JSON 数据
+    fetch('data.json')
+        .then(res => res.json())
+        .then(data => {
+            allData = data;
+            render(allData);
+        });
+
+    function render(list) {
+        const container = document.getElementById('results');
+        container.innerHTML = `<p style="font-size:0.8em; color:#999">共有 ${list.length} 种试剂</p>`;
+        
+        list.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.innerHTML = `
+                <span class="loc-tag">${item['储存位置']}</span>
+                <div class="name">${item['试剂名称']}</div>
+                <div class="details">CAS: ${item['cas号'] || '--'}</div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function doSearch() {
+        const key = document.getElementById('uiSearch').value.toLowerCase();
+        const filtered = allData.filter(item => 
+            item['试剂名称'].toLowerCase().includes(key) || 
+            item['储存位置'].toLowerCase().includes(key) ||
+            item['cas号'].includes(key)
+        );
+        render(filtered);
+    }
+</script>
+</body>
+</html>
